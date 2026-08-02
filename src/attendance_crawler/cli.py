@@ -8,6 +8,7 @@ from attendance_crawler.collectors.gmail import collect_gmail
 from attendance_crawler.collectors.moodle import collect_moodle
 from attendance_crawler.paths import ensure_dirs
 from attendance_crawler.report import format_hermes, format_markdown
+from attendance_crawler.session_filter import filter_records_for_my_sessions
 from attendance_crawler.store import fetch_since, insert_records
 
 
@@ -31,6 +32,11 @@ def main(argv: list[str] | None = None) -> None:
         "--format",
         choices=["markdown", "hermes"],
         default="markdown",
+    )
+    review_p.add_argument(
+        "--all-sessions",
+        action="store_true",
+        help="Ignore my_sessions filters in config.yaml",
     )
 
     args = parser.parse_args(argv)
@@ -56,6 +62,8 @@ def main(argv: list[str] | None = None) -> None:
             config.hermes_lookback_days if args.format == "hermes" else config.collect_lookback_days
         )
         records = fetch_since(days)
+        if not getattr(args, "all_sessions", False):
+            records = filter_records_for_my_sessions(records, config.units)
         if args.format == "hermes":
             out = format_hermes(records, days, config.hermes_silent_when_empty)
         else:

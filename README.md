@@ -86,6 +86,19 @@ python -m attendance_crawler review --days 7 --format hermes
 
 Set `collect_enabled: false` on a unit in `config.yaml` to skip it during normal `collect` (ETM1005 is already disabled).
 
+### Only your tutorial/workshop sessions (`my_sessions`)
+
+Each unit can list the **session numbers** between the date and time in the digest line (`Tutorial | Friday, 31 Jul | **03** | 10:00AM | CODE`):
+
+```yaml
+  - code: FIT2102
+    my_sessions:
+      tutorial: ["01", "02", "09"]
+      workshop: ["01"]
+```
+
+`review` and the Hermes weekly digest apply this filter automatically. Omit `my_sessions` (or leave a type out) to show all sessions of that type for that unit. Use `--all-sessions` to bypass filters for a one-off full dump.
+
 ## Hermes: weekly scrape + Discord digest
 
 Prerequisites: Hermes gateway running with Discord connected.

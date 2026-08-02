@@ -4,6 +4,9 @@ moodle_base_url: "https://learning.monash.edu"
 units:
   - code: ETM1005
     collect_enabled: false
+    # Session numbers between date and time in the digest (Tutorial | date | 03 | time | code)
+    my_sessions:
+      tutorial: ["03"]
     moodle_course_id: 44365
     moodle_discover_sections: true
     moodle_paths:
@@ -13,11 +16,17 @@ units:
   - code: FIT2109
     gmail_query: "FIT2109 Attendance"
     gmail_subject_pattern: "FIT2109.*Attendance\\s+code"
+    my_sessions:
+      tutorial: ["06"]
+      workshop: ["03"]
 
   - code: FIT2102
     ed_course_id: 36340
     ed_thread_title_pattern: "Week\\s*\\d+\\s*Attendance\\s*Codes?"
     ed_author_name: "Tan Choon Ling"
+    my_sessions:
+      tutorial: ["06"]
+      workshop: ["01"]
 
 code_patterns:
   # Require ":" after "attendance code" so subjects don't match the word "code"

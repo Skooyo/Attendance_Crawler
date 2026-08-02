@@ -22,6 +22,8 @@ class UnitConfig:
     ed_author_name: str | None = None
     gmail_query: str | None = None
     gmail_subject_pattern: str | None = None
+    # tutorial / workshop session numbers you attend (see context: Type | date | NUMBER | time | code)
+    my_sessions: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -50,6 +52,15 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     units = []
     for u in raw.get("units", []):
+        ms_raw = u.get("my_sessions") or {}
+        my_sessions: dict[str, list[str]] = {}
+        if isinstance(ms_raw, dict):
+            for key, val in ms_raw.items():
+                k = str(key).strip().lower()
+                if isinstance(val, str):
+                    my_sessions[k] = [val.strip()]
+                elif isinstance(val, list):
+                    my_sessions[k] = [str(x).strip() for x in val if str(x).strip()]
         units.append(
             UnitConfig(
                 code=u["code"],
@@ -63,6 +74,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
                 ed_author_name=u.get("ed_author_name"),
                 gmail_query=u.get("gmail_query"),
                 gmail_subject_pattern=u.get("gmail_subject_pattern"),
+                my_sessions=my_sessions,
             )
         )
 
