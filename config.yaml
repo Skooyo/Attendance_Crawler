@@ -1,0 +1,38 @@
+# Monash Moodle (Okta login — run: python -m attendance_crawler auth moodle)
+moodle_base_url: "https://learning.monash.edu"
+
+units:
+  - code: ETM1005
+    collect_enabled: false
+    moodle_course_id: 44365
+    moodle_discover_sections: true
+    moodle_paths:
+      - "https://learning.monash.edu/course/view.php?id=44365&section=8"
+      - "https://learning.monash.edu/course/view.php?id=44365&section=12"
+
+  - code: FIT2109
+    gmail_query: "FIT2109 Attendance"
+    gmail_subject_pattern: "FIT2109.*Attendance\\s+code"
+
+  - code: FIT2102
+    ed_course_id: 36340
+    ed_thread_title_pattern: "Week\\s*\\d+\\s*Attendance\\s*Codes?"
+    ed_author_name: "Tan Choon Ling"
+
+code_patterns:
+  # Require ":" after "attendance code" so subjects don't match the word "code"
+  - "(?i)attendance\\s+code\\s*:\\s*([A-Za-z0-9-]{4,16})"
+  - "(?i)(?:\\d{1,2}:\\d{2}\\s*(?:AM|PM))\\s+([A-Z0-9]{5})\\b"
+
+collect:
+  lookback_days: 7
+
+hermes:
+  lookback_days: 7
+  silent_when_empty: true
+
+# OpenRouter LLM extraction (set OPENROUTER_API_KEY in .env)
+llm:
+  enabled: true
+  only_when_regex_empty: true
+  model: openai/gpt-4o-mini
