@@ -16,6 +16,10 @@ class UnitConfig:
     moodle_course_id: int | None = None
     moodle_discover_sections: bool = False
     moodle_section_ids: list[int] = field(default_factory=list)
+    # Monash-style: week 1 at section 8, week 2 at 12 (+4), week 3 at 16, ...
+    moodle_week1_section: int | None = None
+    moodle_week_section_step: int = 4
+    moodle_week_count: int = 12
     collect_enabled: bool = True
     ed_course_id: int | None = None
     ed_thread_title_pattern: str | None = None
@@ -68,6 +72,9 @@ def load_config(config_path: Path | None = None) -> AppConfig:
                 moodle_course_id=u.get("moodle_course_id"),
                 moodle_discover_sections=bool(u.get("moodle_discover_sections", False)),
                 moodle_section_ids=[int(x) for x in u.get("moodle_section_ids", [])],
+                moodle_week1_section=u.get("moodle_week1_section"),
+                moodle_week_section_step=int(u.get("moodle_week_section_step", 4)),
+                moodle_week_count=int(u.get("moodle_week_count", 12)),
                 collect_enabled=bool(u.get("collect_enabled", True)),
                 ed_course_id=u.get("ed_course_id"),
                 ed_thread_title_pattern=u.get("ed_thread_title_pattern"),

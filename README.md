@@ -71,6 +71,17 @@ python -m attendance_crawler auth moodle
 
 Complete Okta Verify (push or code) in the browser, then press Enter. Session is saved to `.auth/moodle.json`.
 
+For Monash Moodle courses where **week 1** lives at `section=8` and each week adds **4** (`12`, `16`, …), set on the unit:
+
+```yaml
+moodle_course_id: 44365
+moodle_week1_section: 8
+moodle_week_section_step: 4
+moodle_week_count: 12
+```
+
+That builds URLs for weeks 1–12 without listing each section or using `moodle_discover_sections`. You can still add explicit `moodle_section_ids` or `moodle_paths` if needed.
+
 ## CLI
 
 ```powershell

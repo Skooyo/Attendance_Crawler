@@ -28,6 +28,8 @@ _DATE_RE = re.compile(
 _TIME_CODE_RE = re.compile(
     r"(?i)(\d{1,2}:\d{2}\s*(?:AM|PM)|\d{1,2}:\d{2}\s+(?:AM|PM))\s+([A-Z0-9]{5})\b"
 )
+_SESSION_TYPE_RE = re.compile(r"(?i)\b(tutorial|workshop)\b")
+_SESSION_CHUNK_SPLIT = re.compile(r"(?i)(?=(?:Tutorial|Workshop))")
 
 
 def collect_moodle(config: AppConfig) -> tuple[list[AttendanceRecord], list[str]]:
@@ -115,6 +117,10 @@ def _build_unit_urls(base: str, unit: UnitConfig) -> list[str]:
         add(f"{base}/course/view.php?id={cid}")
         for section_id in unit.moodle_section_ids:
             add(f"{base}/course/view.php?id={cid}&section={section_id}")
+        if unit.moodle_week1_section is not None:
+            for week in range(1, unit.moodle_week_count + 1):
+                section_id = unit.moodle_week1_section + (week - 1) * unit.moodle_week_section_step
+                add(f"{base}/course/view.php?id={cid}&section={section_id}")
 
     return urls
 
@@ -179,7 +185,7 @@ def _extract_from_page(
                 pass
 
     combined = "\n".join(blocks) if blocks else text
-    records = _records_from_tutorial_table(unit_code, url, combined, patterns)
+    records = _records_from_session_tables(unit_code, url, combined, patterns)
 
     if not records:
         codes = extract_codes_from_content(combined, patterns)
@@ -200,92 +206,101 @@ def _extract_from_page(
     return records
 
 
-def _records_from_tutorial_table(
+def _session_type_label(text: str) -> str | None:
+    match = _SESSION_TYPE_RE.search(text)
+    if not match:
+        return None
+    return match.group(1).capitalize()
+
+
+def _records_from_session_tables(
     unit_code: str, url: str, text: str, patterns: list[str]
 ) -> list[AttendanceRecord]:
-    """Parse Moodle tutorial rows: date, time, 5-char code on same line."""
+    """Parse Moodle tutorial/workshop rows: date, session number, time, 5-char code."""
     records: list[AttendanceRecord] = []
     seen_codes: set[str] = set()
 
     for line in text.splitlines():
         line = line.strip()
-        if not line or "tutorial" not in line.lower():
+        session_type = _session_type_label(line)
+        if not session_type:
             continue
         time_code = _TIME_CODE_RE.search(line)
         if not time_code:
             continue
-        code = time_code.group(2)
-        if code in seen_codes:
-            continue
-        seen_codes.add(code)
-
-        date_match = _DATE_RE.search(line)
-        occurred = (
-            parse_weekday_date_string(date_match.group(0))
-            if date_match
-            else datetime.now(timezone.utc)
-        )
-        number = session_number_before_time(line, time_code.start())
-        context = format_tutorial_line(
-            "Tutorial",
-            date_match.group(0) if date_match else "",
-            number,
-            time_code.group(1),
-            code,
-        )
-
-        records.append(
-            AttendanceRecord(
-                unit_code=unit_code,
-                code=code,
-                source="moodle",
-                occurred_at=occurred,
-                context=context,
-                source_url=url,
-            )
+        _append_session_record(
+            records,
+            seen_codes,
+            unit_code,
+            url,
+            session_type,
+            line,
+            time_code,
         )
 
     if records:
         return records
 
-    # Multi-row tables sometimes collapse into one block — scan per Tutorial chunk
-    for chunk in re.split(r"(?i)(?=Tutorial)", text):
-        if "tutorial" not in chunk.lower():
+    # Multi-row tables sometimes collapse into one block — scan per Tutorial/Workshop chunk
+    for chunk in _SESSION_CHUNK_SPLIT.split(text):
+        session_type = _session_type_label(chunk)
+        if not session_type:
             continue
         for time_code in _TIME_CODE_RE.finditer(chunk):
-            code = time_code.group(2)
-            if code in seen_codes:
-                continue
-            seen_codes.add(code)
-            date_match = _DATE_RE.search(chunk)
-            occurred = (
-                parse_weekday_date_string(date_match.group(0))
-                if date_match
-                else datetime.now(timezone.utc)
-            )
-            number = session_number_before_time(chunk, time_code.start())
-            context = format_tutorial_line(
-                "Tutorial",
-                date_match.group(0) if date_match else "",
-                number,
-                time_code.group(1),
-                code,
-            )
-            records.append(
-                AttendanceRecord(
-                    unit_code=unit_code,
-                    code=code,
-                    source="moodle",
-                    occurred_at=occurred,
-                    context=context,
-                    source_url=url,
-                )
+            _append_session_record(
+                records,
+                seen_codes,
+                unit_code,
+                url,
+                session_type,
+                chunk,
+                time_code,
             )
 
     if records:
         return records
 
-    # No tutorial rows — do not scrape random 5-char tokens from the whole course page
+    # No structured session rows — do not scrape random 5-char tokens from the whole page
     return []
+
+
+def _append_session_record(
+    records: list[AttendanceRecord],
+    seen_codes: set[str],
+    unit_code: str,
+    url: str,
+    session_type: str,
+    text: str,
+    time_code: re.Match[str],
+) -> None:
+    code = time_code.group(2)
+    if code in seen_codes:
+        return
+    seen_codes.add(code)
+
+    date_match = _DATE_RE.search(text)
+    occurred = (
+        parse_weekday_date_string(date_match.group(0))
+        if date_match
+        else datetime.now(timezone.utc)
+    )
+    number = session_number_before_time(text, time_code.start())
+    context = format_tutorial_line(
+        session_type,
+        date_match.group(0) if date_match else "",
+        number,
+        time_code.group(1),
+        code,
+    )
+    records.append(
+        AttendanceRecord(
+            unit_code=unit_code,
+            code=code,
+            source="moodle",
+            occurred_at=occurred,
+            context=context,
+            source_url=url,
+        )
+    )
 
 

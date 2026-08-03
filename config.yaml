@@ -8,10 +8,10 @@ units:
     my_sessions:
       tutorial: ["03"]
     moodle_course_id: 44365
-    moodle_discover_sections: true
-    moodle_paths:
-      - "https://learning.monash.edu/course/view.php?id=44365&section=8"
-      - "https://learning.monash.edu/course/view.php?id=44365&section=12"
+    # Week N → section = week1_section + (N-1) * step (Monash: week1=8, +4 → 8,12,16,…)
+    moodle_week1_section: 8
+    moodle_week_section_step: 4
+    moodle_week_count: 12
 
   - code: FIT2109
     gmail_query: "FIT2109 Attendance"
