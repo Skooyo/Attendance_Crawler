@@ -10,6 +10,7 @@ from attendance_crawler.paths import ensure_dirs
 from attendance_crawler.report import format_hermes, format_markdown
 from attendance_crawler.session_filter import filter_records_for_my_sessions
 from attendance_crawler.store import fetch_since, insert_records
+from attendance_crawler.auth_moodle import auth_moodle_interactive
 
 
 def main(argv: list[str] | None = None) -> None:
