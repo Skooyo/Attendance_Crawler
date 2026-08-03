@@ -1,5 +1,62 @@
 # Attendance Code Crawler
 
+Collect university attendance codes from **Moodle**, **EdStem**, and **Gmail**, store them in a local **SQLite** database, and deliver a filtered weekly digest to **Discord** via [Hermes Agent](https://hermes-agent.nousresearch.com/) cron—no manual copy-paste, no LLM in the delivery path.
+
+| Source | Typical use | Auth |
+|--------|-------------|------|
+| Moodle | Tutorial/workshop tables on Monash `learning.monash.edu` | Okta + Playwright session |
+| EdStem | Week attendance posts (often images) | API token |
+| Gmail | FIT-style attendance emails (often images) | Google OAuth |
+
+Codes are normalized into rows like `Tutorial | Friday, 31 Jul | 03 | 10:00AM | RZL2X` so you can filter by **your** tutorial/workshop session numbers before Discord sees them.
+
+## Features
+
+- **Multi-source collectors** — Moodle (Playwright), EdStem (REST), Gmail (API)
+- **Regex + Tesseract OCR + optional OpenRouter vision** when codes live in images
+- **Per-unit config** — sources, Gmail/Ed filters, Monash week→section mapping (`week1=8`, `+4` per week)
+- **`my_sessions`** — only show tutorial/workshop slots you actually attend in `review` and Hermes digests
+- **Hermes no-agent cron** — script stdout goes straight to Discord; collect job stays local
+- **Local-first** — `data/attendance.db`, credentials on disk, nothing pushed to a cloud backend by default
+
+## How it works
+
+```text
+Moodle / EdStem / Gmail  →  collect  →  SQLite (attendance.db)
+                                              ↓
+                         review --format hermes  →  Hermes cron  →  Discord
+```
+
+1. **`collect`** scrapes configured units and inserts new codes (deduped by unit, code, source, time).
+2. **`review`** reads the DB for the last *N* days and prints markdown or a Hermes-friendly digest.
+3. **Hermes** runs wrapper scripts on a schedule; the digest job uses `deliver discord` to your home channel.
+
+## Quick start
+
+> [!IMPORTANT]
+> Hermes on Windows loads cron scripts from `%LOCALAPPDATA%\hermes\scripts\` and needs `DISCORD_HOME_CHANNEL` in `%LOCALAPPDATA%\hermes\.env` for Discord delivery. Use `.py` wrappers, not `.cmd`.
+
+```powershell
+cd D:\Projects\Attendance_Crawler
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+playwright install chromium
+copy .env.example .env
+```
+
+1. Edit **`config.yaml`** (units, `my_sessions`, Moodle week sections) and **`.env`** (`ED_API_TOKEN`, optional `OPENROUTER_API_KEY`).
+2. **`python -m attendance_crawler auth moodle`** — Okta login once; session in `.auth/moodle.json`.
+3. Place **`credentials.json`** in the project root and run **`collect`** once to complete Gmail OAuth (`token.json`).
+4. **`python -m attendance_crawler collect --units FIT2102,FIT2109`** — smoke test.
+5. Copy **`scripts/hermes_*.py`** into `%LOCALAPPDATA%\hermes\scripts\` as `attendance_collect_weekly.py` / `attendance_review_weekly.py`, create Hermes cron jobs, set Discord home (`/sethome` or `DISCORD_HOME_CHANNEL`), restart gateway.
+
+Everything below is the **full setup guide** (Gmail OAuth steps, CLI, `my_sessions`, Hermes cron, Discord troubleshooting, security).
+
+---
+
+## Detailed setup guide
+
 Collect attendance codes from Moodle, EdStem, and Gmail into a local SQLite database, then send a weekly summary to Discord via [Hermes Agent](https://hermes-agent.nousresearch.com/) cron.
 
 ## Requirements
@@ -27,7 +84,7 @@ Copy `.env.example` to `.env` and edit `config.yaml` with your units.
 
 ### Gmail (FIT2109)
 
-Gmail uses **Google OAuth** — see README. Subject filter example:
+Gmail uses **Google OAuth**. Subject filter example:
 `FIT2109 S2 2026 Malaysia : Attendance code ... - Week 1 Workshops and Tutorials`
 
 ### OpenRouter (optional LLM extraction)
@@ -41,6 +98,7 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 
 Get a key at https://openrouter.ai/keys
 
+### Gmail OAuth credentials
 
 1. **Google Cloud Console** — https://console.cloud.google.com/
 2. Create a project (or pick an existing one).
@@ -80,7 +138,7 @@ moodle_week_section_step: 4
 moodle_week_count: 12
 ```
 
-That builds URLs for weeks 1–12 without listing each section or using `moodle_discover_sections`. You can still add explicit `moodle_section_ids` or `moodle_paths` if needed.
+That builds URLs for weeks 1–12 without listing each section or using `moodle_discover_sections`. You can still add explicit `moodle_section_ids` or `moodle_paths` if needed. Moodle pages can include both **Tutorial** and **Workshop** tables; both are parsed when present.
 
 ## CLI
 
