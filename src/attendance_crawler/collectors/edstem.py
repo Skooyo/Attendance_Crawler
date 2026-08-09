@@ -1,7 +1,7 @@
 """EdStem API collector."""
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -25,6 +25,7 @@ def collect_edstem(config: AppConfig) -> tuple[list[AttendanceRecord], list[str]
         "Content-Type": "application/json",
     }
     base = config.ed_base_url.rstrip("/")
+    cutoff = datetime.now(timezone.utc) - timedelta(days=config.edstem_lookback_days)
 
     with httpx.Client(headers=headers, timeout=60.0) as client:
         for unit in config.units:
@@ -34,19 +35,35 @@ def collect_edstem(config: AppConfig) -> tuple[list[AttendanceRecord], list[str]
             try:
                 threads = _list_threads(client, base, course_id)
                 matched = 0
+                considered = 0
                 for thread in threads:
                     if not isinstance(thread, dict):
                         continue
+                    if not _thread_within_lookback(thread, cutoff):
+                        continue
+                    considered += 1
                     recs = _thread_to_records(
-                        client, base, config.ed_region, unit, thread, config
+                        client,
+                        base,
+                        config.ed_region,
+                        unit,
+                        thread,
+                        config,
+                        lookback_cutoff=cutoff,
                     )
                     if recs:
                         matched += 1
                     records.extend(recs)
-                if unit.ed_thread_title_pattern and matched == 0 and threads:
+                if unit.ed_thread_title_pattern and matched == 0 and considered == 0 and threads:
                     errors.append(
-                        f"EdStem {unit.code}: 0 threads matched filters "
-                        f"(listed {len(threads)} threads; check title/author or API token)"
+                        f"EdStem {unit.code}: no threads in last "
+                        f"{config.edstem_lookback_days:g} days "
+                        f"(listed {len(threads)}; check lookback or filters)"
+                    )
+                elif unit.ed_thread_title_pattern and matched == 0 and considered > 0:
+                    errors.append(
+                        f"EdStem {unit.code}: {considered} recent thread(s) but 0 codes "
+                        f"(title/author match or extraction failed)"
                     )
             except Exception as e:
                 errors.append(f"EdStem unit {unit.code}: {e}")
@@ -55,11 +72,26 @@ def collect_edstem(config: AppConfig) -> tuple[list[AttendanceRecord], list[str]
 
 
 def _list_threads(client: httpx.Client, base: str, course_id: int) -> list[dict]:
-    resp = client.get(f"{base}/courses/{course_id}/threads", params={"limit": 200})
+    """Recent threads first (Ed API has no created_after param)."""
+    resp = client.get(
+        f"{base}/courses/{course_id}/threads",
+        params={"limit": 100, "sort": "new"},
+    )
     resp.raise_for_status()
     data = resp.json()
     threads = _extract_thread_list(data)
     return [t for t in threads if isinstance(t, dict)]
+
+
+def _thread_created_at(thread: dict) -> datetime:
+    for key in ("created_at", "created", "last_activity_at", "updated_at"):
+        if thread.get(key) is not None:
+            return _parse_ed_time(thread.get(key))
+    return datetime.now(timezone.utc)
+
+
+def _thread_within_lookback(thread: dict, cutoff: datetime) -> bool:
+    return _thread_created_at(thread) >= cutoff
 
 
 def _extract_thread_list(data: Any) -> list[Any]:
@@ -154,10 +186,20 @@ def _thread_to_records(
     unit: UnitConfig,
     thread: dict,
     config: AppConfig,
+    *,
+    lookback_cutoff: datetime | None = None,
 ) -> list[AttendanceRecord]:
     thread_id = thread.get("id")
     if thread_id is None:
         return []
+
+    if lookback_cutoff is not None and not _thread_within_lookback(thread, lookback_cutoff):
+        return []
+
+    title_stub = str(thread.get("title") or "").strip()
+    if unit.ed_thread_title_pattern and title_stub:
+        if not re.search(unit.ed_thread_title_pattern, title_stub, re.I):
+            return []
 
     envelope: Any = {}
     detail = thread
@@ -184,8 +226,7 @@ def _thread_to_records(
 
     image_blobs = _download_ed_images(client, str(content))
 
-    created = detail.get("created_at") or detail.get("created")
-    occurred = _parse_ed_time(created)
+    occurred = _thread_created_at(detail)
 
     entries = extract_entries_hybrid(
         text=text,
@@ -196,6 +237,7 @@ def _thread_to_records(
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
+        llm_max_tokens=config.llm_max_tokens,
         default_occurred=occurred,
     )
 

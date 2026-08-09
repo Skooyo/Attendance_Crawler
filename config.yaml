@@ -14,11 +14,12 @@ units:
     moodle_week_count: 12
 
   - code: FIT2109
-    gmail_query: "FIT2109 Attendance"
+    # Gmail server-side filter (subject only); newer_than:{lookback}d is appended in code
+    gmail_query: 'subject:FIT2109 subject:"Attendance code"'
     gmail_subject_pattern: "FIT2109.*Attendance\\s+code"
     my_sessions:
       tutorial: ["06"]
-      workshop: ["03"]
+      workshop: ["03_OnlineRealTime"]
 
   - code: FIT2102
     ed_course_id: 36340
@@ -35,13 +36,19 @@ code_patterns:
 
 collect:
   lookback_days: 7
+  # EdStem has no server-side date filter; we list recent threads (sort=new) and skip older than this.
+  edstem_lookback_weeks: 1.5
 
 hermes:
   lookback_days: 7
   silent_when_empty: true
 
 # OpenRouter LLM extraction (set OPENROUTER_API_KEY in .env)
+# Model: openrouter/free picks a free model per request (vision when needed).
+# Or use a specific free slug, e.g. meta-llama/llama-3.2-3b-instruct:free
 llm:
   enabled: true
   only_when_regex_empty: true
-  model: openai/gpt-4o-mini
+  model: openrouter/free
+  # Cap tokens so OpenRouter does not reject requests (default 16k can hit credit limits)
+  max_tokens: 2048

@@ -84,8 +84,9 @@ Copy `.env.example` to `.env` and edit `config.yaml` with your units.
 
 ### Gmail (FIT2109)
 
-Gmail uses **Google OAuth**. Subject filter example:
-`FIT2109 S2 2026 Malaysia : Attendance code ... - Week 1 Workshops and Tutorials`
+Gmail uses **Google OAuth**. `gmail_query` in `config.yaml` uses Gmail `subject:` operators (e.g. `subject:FIT2109 subject:"Attendance code"`); code adds `newer_than:{lookback}d`. A stricter `gmail_subject_pattern` regex still applies after list.
+
+Example subject: `FIT2109 S2 2026 Malaysia : Attendance code ... - Week 1 Workshops and Tutorials`
 
 ### OpenRouter (optional LLM extraction)
 
@@ -93,8 +94,10 @@ When regex/OCR miss codes, enable in `config.yaml` under `llm:` and set:
 
 ```env
 OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=openai/gpt-4o-mini
+OPENROUTER_MODEL=openrouter/free
 ```
+
+EdStem/Gmail posts usually put codes **in images**. With `llm.enabled: true`, the collector runs **OpenRouter vision on images first** (not regex on the email HTML). Default model is **`openrouter/free`** (zero-cost router; picks a free model that supports vision when possible). Override via `llm.model` in `config.yaml` or `OPENROUTER_MODEL` in `.env`.
 
 Get a key at https://openrouter.ai/keys
 
@@ -152,6 +155,17 @@ python -m attendance_crawler collect --units FIT2102,FIT2109
 python -m attendance_crawler review --days 7 --format markdown
 python -m attendance_crawler review --days 7 --format hermes
 ```
+
+**Debug Gmail / EdStem** when `collect` reports 0 codes:
+
+```powershell
+python scripts/debug_sources.py
+python scripts/debug_sources.py --units FIT2109,FIT2102 --list-all-threads
+```
+
+Shows each message/thread, filter pass/fail, regex hits, and hybrid (LLM) extraction per item.
+
+**`scripts/`:** `debug_sources.py` (Gmail/EdStem pipeline debug), `hermes_collect.py` / `hermes_review.py` (copy into Hermes as weekly cron wrappers).
 
 Set `collect_enabled: false` on a unit in `config.yaml` to skip it during normal `collect` (ETM1005 is already disabled).
 

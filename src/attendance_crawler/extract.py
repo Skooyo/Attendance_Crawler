@@ -48,6 +48,15 @@ def ocr_image_bytes(data: bytes) -> str:
         return ""
 
 
+def ocr_blobs_to_text(image_blobs: Iterable[bytes]) -> str:
+    parts: list[str] = []
+    for blob in image_blobs:
+        text = ocr_image_bytes(blob)
+        if text:
+            parts.append(text)
+    return "\n\n".join(parts)
+
+
 def extract_codes_from_content(
     text: str,
     patterns: Iterable[str],

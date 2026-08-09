@@ -119,6 +119,7 @@ def _filter_units_for_collect(config, unit_codes: list[str] | None):
         units=units,
         code_patterns=config.code_patterns,
         collect_lookback_days=config.collect_lookback_days,
+        edstem_lookback_days=config.edstem_lookback_days,
         hermes_lookback_days=config.hermes_lookback_days,
         hermes_silent_when_empty=config.hermes_silent_when_empty,
         ed_api_token=config.ed_api_token,
@@ -127,6 +128,7 @@ def _filter_units_for_collect(config, unit_codes: list[str] | None):
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
+        llm_max_tokens=config.llm_max_tokens,
     )
 
 

@@ -10,3 +10,7 @@ token.json
 *.egg-info/
 dist/
 build/
+.playwright/
+.pytest_cache/
+.ruff_cache/
+*.log

@@ -8,12 +8,7 @@ from urllib.parse import unquote
 import httpx
 
 from attendance_crawler.config import AppConfig, UnitConfig
-from attendance_crawler.extract import (
-    format_tutorial_line,
-    parse_weekday_date_string,
-    session_number_before_time,
-    strip_html,
-)
+from attendance_crawler.extract import strip_html
 from attendance_crawler.llm_extract import extract_entries_hybrid
 from attendance_crawler.paths import GMAIL_CREDENTIALS_PATH, GMAIL_TOKEN_PATH
 from attendance_crawler.store import AttendanceRecord
@@ -38,9 +33,7 @@ def collect_gmail(config: AppConfig) -> tuple[list[AttendanceRecord], list[str]]
     for unit in config.units:
         if not unit.gmail_query:
             continue
-        query = unit.gmail_query
-        if "newer_than" not in query:
-            query = f"newer_than:{config.collect_lookback_days}d {query}"
+        query = gmail_search_query(unit, config)
         try:
             messages = _list_messages(service, query)
             for msg_id in messages:
@@ -75,6 +68,13 @@ def _get_gmail_service():
     return build("gmail", "v1", credentials=creds)
 
 
+def gmail_search_query(unit: UnitConfig, config: AppConfig) -> str:
+    query = (unit.gmail_query or "").strip()
+    if query and "newer_than" not in query:
+        query = f"newer_than:{config.collect_lookback_days}d {query}"
+    return query
+
+
 def _list_messages(service, query: str, max_results: int = 50) -> list[str]:
     result = service.users().messages().list(
         userId="me", q=query, maxResults=max_results
@@ -82,17 +82,45 @@ def _list_messages(service, query: str, max_results: int = 50) -> list[str]:
     return [m["id"] for m in result.get("messages", [])]
 
 
+def _message_headers(msg: dict) -> dict[str, str]:
+    payload = msg.get("payload") or {}
+    return {
+        h["name"].lower(): h["value"]
+        for h in payload.get("headers", [])
+        if h.get("name") and h.get("value") is not None
+    }
+
+
+def _subject_matches(unit: UnitConfig, subject: str) -> bool:
+    if not unit.gmail_subject_pattern:
+        return True
+    return bool(re.search(unit.gmail_subject_pattern, subject, re.I))
+
+
 def _process_message(
     service, msg_id: str, unit: UnitConfig, config: AppConfig
 ) -> list[AttendanceRecord]:
-    msg = service.users().messages().get(
-        userId="me", id=msg_id, format="full"
-    ).execute()
-    headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
-    subject = headers.get("subject", "")
-    if unit.gmail_subject_pattern:
-        if not re.search(unit.gmail_subject_pattern, subject, re.I):
-            return []
+    meta = (
+        service.users()
+        .messages()
+        .get(
+            userId="me",
+            id=msg_id,
+            format="metadata",
+            metadataHeaders=["Subject"],
+        )
+        .execute()
+    )
+    subject = _message_headers(meta).get("subject", "")
+    if not _subject_matches(unit, subject):
+        return []
+
+    msg = (
+        service.users()
+        .messages()
+        .get(userId="me", id=msg_id, format="full")
+        .execute()
+    )
 
     internal_date = int(msg.get("internalDate", 0))
     occurred = datetime.fromtimestamp(internal_date / 1000, tz=timezone.utc)
@@ -110,6 +138,7 @@ def _process_message(
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
+        llm_max_tokens=config.llm_max_tokens,
         default_occurred=occurred,
     )
     source_url = f"https://mail.google.com/mail/u/0/#inbox/{msg_id}"

@@ -36,6 +36,7 @@ class AppConfig:
     units: list[UnitConfig]
     code_patterns: list[str]
     collect_lookback_days: int = 7
+    edstem_lookback_days: float = 7.0
     hermes_lookback_days: int = 7
     hermes_silent_when_empty: bool = True
     ed_api_token: str | None = None
@@ -44,6 +45,7 @@ class AppConfig:
     llm_enabled: bool = False
     llm_only_when_empty: bool = True
     llm_model: str | None = None
+    llm_max_tokens: int = 2048
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -89,6 +91,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     hermes = raw.get("hermes", {})
     llm = raw.get("llm", {})
 
+    if "edstem_lookback_weeks" in collect:
+        edstem_lookback_days = float(collect["edstem_lookback_weeks"]) * 7.0
+    elif "edstem_lookback_days" in collect:
+        edstem_lookback_days = float(collect["edstem_lookback_days"])
+    else:
+        edstem_lookback_days = float(collect.get("lookback_days", 7))
+
     moodle_base = raw.get("moodle_base_url") or os.getenv("MOODLE_BASE_URL", "")
     if not moodle_base:
         moodle_base = os.getenv("MOODLE_BASE_URL", "https://lms.example.edu")
@@ -98,6 +107,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         units=units,
         code_patterns=list(raw.get("code_patterns", [])),
         collect_lookback_days=int(collect.get("lookback_days", 7)),
+        edstem_lookback_days=edstem_lookback_days,
         hermes_lookback_days=int(hermes.get("lookback_days", 7)),
         hermes_silent_when_empty=bool(hermes.get("silent_when_empty", True)),
         ed_api_token=os.getenv("ED_API_TOKEN"),
@@ -106,4 +116,5 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         llm_enabled=bool(llm.get("enabled", False)),
         llm_only_when_empty=bool(llm.get("only_when_regex_empty", True)),
         llm_model=llm.get("model") or os.getenv("OPENROUTER_MODEL"),
+        llm_max_tokens=int(llm.get("max_tokens", 2048)),
     )
