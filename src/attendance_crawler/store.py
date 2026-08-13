@@ -16,6 +16,17 @@ class AttendanceRecord:
     source_url: str | None = None
 
 
+ED_DIGEST_SCHEMA = """
+CREATE TABLE IF NOT EXISTS ed_digest_watermarks (
+    course_id INTEGER NOT NULL,
+    thread_id INTEGER NOT NULL,
+    thread_number INTEGER,
+    last_activity_at TEXT NOT NULL,
+    digested_at TEXT NOT NULL,
+    PRIMARY KEY (course_id, thread_id)
+);
+"""
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS attendance_codes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +47,7 @@ def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    conn.executescript(ED_DIGEST_SCHEMA)
     return conn
 
 
@@ -97,3 +109,40 @@ def fetch_since(days: int) -> list[AttendanceRecord]:
             )
         )
     return out
+
+
+def get_ed_digest_watermarks(course_id: int) -> dict[int, str]:
+    """Map thread_id -> last_activity_at ISO for a course."""
+    conn = connect()
+    rows = conn.execute(
+        "SELECT thread_id, last_activity_at FROM ed_digest_watermarks WHERE course_id = ?",
+        (course_id,),
+    ).fetchall()
+    conn.close()
+    return {int(r["thread_id"]): r["last_activity_at"] for r in rows}
+
+
+def upsert_ed_digest_watermarks(
+    rows: Iterable[tuple[int, int, int | None, str]],
+) -> int:
+    """rows: (course_id, thread_id, thread_number, last_activity_at)."""
+    conn = connect()
+    now = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for course_id, thread_id, thread_number, last_activity_at in rows:
+        conn.execute(
+            """
+            INSERT INTO ed_digest_watermarks
+                (course_id, thread_id, thread_number, last_activity_at, digested_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(course_id, thread_id) DO UPDATE SET
+                thread_number = excluded.thread_number,
+                last_activity_at = excluded.last_activity_at,
+                digested_at = excluded.digested_at
+            """,
+            (course_id, thread_id, thread_number, last_activity_at, now),
+        )
+        n += 1
+    conn.commit()
+    conn.close()
+    return n

@@ -14,6 +14,7 @@ units:
     moodle_week_count: 12
 
   - code: FIT2109
+    ed_course_id: 39026
     # Gmail server-side filter (subject only); newer_than:{lookback}d is appended in code
     gmail_query: 'subject:FIT2109 subject:"Attendance code"'
     gmail_subject_pattern: "FIT2109.*Attendance\\s+code"
@@ -28,6 +29,14 @@ units:
     my_sessions:
       tutorial: ["06"]
       workshop: ["01"]
+
+# Daily EdStem unread digest (separate from attendance collect filters)
+ed_digest:
+  units: [FIT2102, FIT2109]
+  keywords: [Quiz, Assignment, Specs]
+  body_chars: 500
+  # ponytail: raise if long gaps truncate digests
+  max_threads: 40
 
 code_patterns:
   # Require ":" after "attendance code" so subjects don't match the word "code"

@@ -31,6 +31,15 @@ class UnitConfig:
 
 
 @dataclass
+class EdDigestConfig:
+    keywords: list[str] = field(default_factory=lambda: ["Quiz", "Assignment", "Specs"])
+    body_chars: int = 500
+    # ponytail: O(n) list page; raise if long gaps truncate digests
+    max_threads: int = 40
+    unit_codes: list[str] = field(default_factory=list)
+
+
+@dataclass
 class AppConfig:
     moodle_base_url: str
     units: list[UnitConfig]
@@ -46,6 +55,7 @@ class AppConfig:
     llm_only_when_empty: bool = True
     llm_model: str | None = None
     llm_max_tokens: int = 2048
+    ed_digest: EdDigestConfig = field(default_factory=EdDigestConfig)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -90,6 +100,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     collect = raw.get("collect", {})
     hermes = raw.get("hermes", {})
     llm = raw.get("llm", {})
+    ed_digest_raw = raw.get("ed_digest") or {}
+    ed_digest = EdDigestConfig(
+        keywords=[str(k) for k in ed_digest_raw.get("keywords", ["Quiz", "Assignment", "Specs"])],
+        body_chars=int(ed_digest_raw.get("body_chars", 500)),
+        max_threads=int(ed_digest_raw.get("max_threads", 40)),
+        unit_codes=[str(c).strip().upper() for c in ed_digest_raw.get("units", []) if str(c).strip()],
+    )
 
     if "edstem_lookback_weeks" in collect:
         edstem_lookback_days = float(collect["edstem_lookback_weeks"]) * 7.0
@@ -117,4 +134,5 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         llm_only_when_empty=bool(llm.get("only_when_regex_empty", True)),
         llm_model=llm.get("model") or os.getenv("OPENROUTER_MODEL"),
         llm_max_tokens=int(llm.get("max_tokens", 2048)),
+        ed_digest=ed_digest,
     )
