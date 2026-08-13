@@ -11,6 +11,13 @@ from attendance_crawler.report import format_hermes, format_markdown
 from attendance_crawler.session_filter import filter_records_for_my_sessions
 from attendance_crawler.store import fetch_since, insert_records
 from attendance_crawler.auth_moodle import auth_moodle_interactive
+from attendance_crawler.ed_digest import (
+    collect_ed_digest,
+    confirm_digest,
+    format_dump,
+    load_pending,
+    write_pending,
+)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -40,6 +47,13 @@ def main(argv: list[str] | None = None) -> None:
         help="Ignore my_sessions filters in config.yaml",
     )
 
+
+    ed_p = sub.add_parser("ed-digest", help="Daily EdStem digest (collect / dump / confirm)")
+    ed_sub = ed_p.add_subparsers(dest="ed_command", required=True)
+    ed_sub.add_parser("collect", help="Fetch new threads, rank, write pending dump")
+    ed_sub.add_parser("dump", help="Print pending dump for Hermes agent (or Nothing new)")
+    ed_sub.add_parser("confirm", help="Watermark + mark Ed read after Discord delivery")
+
     args = parser.parse_args(argv)
     ensure_dirs()
     config = load_config()
@@ -50,6 +64,26 @@ def main(argv: list[str] | None = None) -> None:
         elif args.target == "gmail":
             auth_gmail_interactive()
         return
+
+
+    if args.command == "ed-digest":
+        if args.ed_command == "collect":
+            posts, errors = collect_ed_digest(config)
+            path = write_pending(posts)
+            print(f"Ed digest collect: {len(posts)} post(s) -> {path}")
+            for err in errors:
+                print(err, file=sys.stderr)
+            return
+        if args.ed_command == "dump":
+            posts = load_pending()
+            print(format_dump(posts), end="")
+            return
+        if args.ed_command == "confirm":
+            n, errors = confirm_digest(config)
+            print(f"Ed digest confirm: watermarked {n} thread(s)")
+            for err in errors:
+                print(err, file=sys.stderr)
+            return
 
     if args.command == "collect":
         unit_codes = None
@@ -129,6 +163,7 @@ def _filter_units_for_collect(config, unit_codes: list[str] | None):
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
         llm_max_tokens=config.llm_max_tokens,
+        ed_digest=config.ed_digest,
     )
 
 
