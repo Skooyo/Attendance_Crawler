@@ -23,7 +23,8 @@ class UnitConfig:
     collect_enabled: bool = True
     ed_course_id: int | None = None
     ed_thread_title_pattern: str | None = None
-    ed_author_name: str | None = None
+    # One name, or a list; match if any name is a substring of the thread author
+    ed_author_name: str | list[str] | None = None
     gmail_query: str | None = None
     gmail_subject_pattern: str | None = None
     # tutorial / workshop session numbers you attend (see context: Type | date | NUMBER | time | code)

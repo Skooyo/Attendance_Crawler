@@ -23,7 +23,9 @@ if str(_ROOT / "src") not in sys.path:
 
 from attendance_crawler.config import AppConfig, UnitConfig, load_config
 from attendance_crawler.collectors.edstem import (
+    _author_matches,
     _author_name_from_thread,
+    _author_needles,
     _download_ed_images,
     _list_threads,
     _normalize_thread_detail,
@@ -215,8 +217,8 @@ def debug_edstem(
             _sub(f"Unit {unit.code} (course {unit.ed_course_id})")
             if unit.ed_thread_title_pattern:
                 print(f"Title regex: {unit.ed_thread_title_pattern!r}")
-            if unit.ed_author_name:
-                print(f"Author contains: {unit.ed_author_name!r}")
+            if _author_needles(unit):
+                print(f"Author contains any of: {_author_needles(unit)!r}")
 
             try:
                 threads = _list_threads(client, base, unit.ed_course_id)
@@ -241,11 +243,7 @@ def debug_edstem(
                     if unit.ed_thread_title_pattern
                     else True
                 )
-                author_hit = (
-                    unit.ed_author_name.lower() in author.lower()
-                    if unit.ed_author_name and author
-                    else True
-                )
+                author_hit = _author_matches(unit, author)
                 if re.search(r"attendance", title, re.I):
                     attendance_like += 1
 
@@ -255,7 +253,7 @@ def debug_edstem(
                     print(f"  thread {tid} [{flag}] title={title!r} author={author!r}")
                     if unit.ed_thread_title_pattern and not title_hit:
                         print("      >> title filter failed")
-                    if unit.ed_author_name and author and not author_hit:
+                    if _author_needles(unit) and author and not author_hit:
                         print("      >> author filter failed")
 
                 if not passes:

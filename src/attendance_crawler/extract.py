@@ -1,7 +1,9 @@
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from io import BytesIO
+from pathlib import Path
 from typing import Iterable
 
 from bs4 import BeautifulSoup
@@ -11,6 +13,27 @@ try:
     import pytesseract
 except ImportError:
     pytesseract = None  # type: ignore
+
+_tesseract_warned = False
+_tesseract_cmd_ready = False
+
+
+def _configure_tesseract_cmd() -> None:
+    """Use TESSERACT_CMD or the default Windows install path if PATH has no tesseract."""
+    global _tesseract_cmd_ready
+    if _tesseract_cmd_ready or pytesseract is None:
+        return
+    _tesseract_cmd_ready = True
+    candidates = [
+        os.getenv("TESSERACT_CMD"),
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        str(Path.home() / "AppData/Local/Programs/Tesseract-OCR/tesseract.exe"),
+    ]
+    for path in candidates:
+        if path and Path(path).is_file():
+            pytesseract.pytesseract.tesseract_cmd = path
+            return
 
 
 def strip_html(html: str) -> str:
@@ -37,14 +60,29 @@ def extract_codes_from_text(text: str, patterns: Iterable[str]) -> list[str]:
 
 
 def ocr_image_bytes(data: bytes) -> str:
+    global _tesseract_warned
     if pytesseract is None:
         return ""
+    _configure_tesseract_cmd()
     try:
         img = Image.open(BytesIO(data))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGBA")
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
         img = ImageOps.grayscale(img)
         img = ImageEnhance.Contrast(img).enhance(2.0)
         return pytesseract.image_to_string(img).strip()
-    except Exception:
+    except Exception as e:
+        if not _tesseract_warned:
+            _tesseract_warned = True
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Tesseract OCR skipped: %s (install Tesseract and add it to PATH)",
+                e,
+            )
         return ""
 
 

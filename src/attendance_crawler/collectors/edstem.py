@@ -107,13 +107,29 @@ def _extract_thread_list(data: Any) -> list[Any]:
     return []
 
 
+def _author_needles(unit: UnitConfig) -> list[str]:
+    raw = unit.ed_author_name
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [raw] if raw.strip() else []
+    return [str(x).strip() for x in raw if str(x).strip()]
+
+
+def _author_matches(unit: UnitConfig, author_name: str) -> bool:
+    needles = _author_needles(unit)
+    if not needles or not author_name:
+        return True
+    author = author_name.lower()
+    return any(n.lower() in author for n in needles)
+
+
 def _thread_matches_filters(unit: UnitConfig, title: str, author_name: str) -> bool:
     if unit.ed_thread_title_pattern:
         if not re.search(unit.ed_thread_title_pattern, title, re.I):
             return False
-    if unit.ed_author_name and author_name:
-        if unit.ed_author_name.lower() not in author_name.lower():
-            return False
+    if not _author_matches(unit, author_name):
+        return False
     return True
 
 

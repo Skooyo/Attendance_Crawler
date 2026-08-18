@@ -82,7 +82,6 @@ def insert_records(records: Iterable[AttendanceRecord]) -> int:
 def fetch_since(days: int) -> list[AttendanceRecord]:
     conn = connect()
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=days)
     rows = conn.execute(
         """
         SELECT unit_code, code, source, occurred_at, context, source_url
@@ -96,7 +95,10 @@ def fetch_since(days: int) -> list[AttendanceRecord]:
         occurred = datetime.fromisoformat(row["occurred_at"])
         if occurred.tzinfo is None:
             occurred = occurred.replace(tzinfo=timezone.utc)
-        if occurred < cutoff or occurred > now + timedelta(days=1):
+        # Calendar days so a session on day N still shows on day N+14
+        if occurred.date() < (now - timedelta(days=days)).date():
+            continue
+        if occurred.date() > now.date() + timedelta(days=14):
             continue
         out.append(
             AttendanceRecord(

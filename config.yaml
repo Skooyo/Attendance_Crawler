@@ -24,8 +24,11 @@ units:
 
   - code: FIT2102
     ed_course_id: 36340
-    ed_thread_title_pattern: "Week\\s*\\d+\\s*Attendance\\s*Codes?"
-    ed_author_name: "Tan Choon Ling"
+    # Allows "Week 2 Attendance Codes" and "Week3 - International Student's Attendance Codes"
+    ed_thread_title_pattern: "Week\\s*\\d+.*Attendance\\s*Codes?"
+    ed_author_name:
+      - "Tan Choon Ling"
+      - "Natalia Ahmed"
     my_sessions:
       tutorial: ["06"]
       workshop: ["01"]
