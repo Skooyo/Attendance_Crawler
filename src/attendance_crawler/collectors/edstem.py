@@ -253,7 +253,7 @@ def _thread_to_records(
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
-        llm_max_tokens=config.llm_max_tokens,
+        llm_effort=config.llm_effort,
         default_occurred=occurred,
     )
 

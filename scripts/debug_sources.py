@@ -36,8 +36,9 @@ from attendance_crawler.collectors.gmail import (
     _get_gmail_service,
     _list_messages,
 )
-from attendance_crawler.extract import extract_codes_from_content, ocr_blobs_to_text, strip_html
-from attendance_crawler.llm_extract import extract_entries_hybrid, last_openrouter_error
+from attendance_crawler import llm_extract
+from attendance_crawler.extract import extract_codes_from_text, strip_html
+from attendance_crawler.llm_extract import extract_entries_hybrid
 from attendance_crawler.paths import GMAIL_CREDENTIALS_PATH
 
 import httpx
@@ -67,8 +68,7 @@ def _print_config_summary(config: AppConfig) -> None:
     print(f"collect.lookback_days: {config.collect_lookback_days}")
     print(f"collect.edstem_lookback_days: {config.edstem_lookback_days:g}")
     print(f"llm.enabled: {config.llm_enabled}  llm.only_when_regex_empty: {config.llm_only_when_empty}")
-    print(f"llm.model: {config.llm_model or '(env OPENROUTER_MODEL)'}")
-    print(f"OPENROUTER_API_KEY set: {bool(__import__('os').getenv('OPENROUTER_API_KEY'))}")
+    print(f"llm.model: {config.llm_model or 'claude-sonnet-5-5'}  effort: {config.llm_effort}")
     print(f"ED_API_TOKEN set: {bool(config.ed_api_token)}")
     print(f"code_patterns: {len(config.code_patterns)} pattern(s)")
 
@@ -153,8 +153,8 @@ def debug_gmail(config: AppConfig, units: list[UnitConfig], *, show_skipped: boo
             html_images = _download_images_from_html(html_raw)
             all_images = inline_images + html_images
 
-            regex_codes = extract_codes_from_content(
-                body_text, config.code_patterns, ()
+            regex_codes = extract_codes_from_text(
+                body_text, config.code_patterns
             )
             entries = extract_entries_hybrid(
                 text=body_text,
@@ -165,25 +165,22 @@ def debug_gmail(config: AppConfig, units: list[UnitConfig], *, show_skipped: boo
                 llm_enabled=config.llm_enabled,
                 llm_only_when_empty=config.llm_only_when_empty,
                 llm_model=config.llm_model,
-                llm_max_tokens=config.llm_max_tokens,
+                llm_effort=config.llm_effort,
                 default_occurred=occurred,
             )
-            ocr_preview = ocr_blobs_to_text(all_images) if all_images else ""
 
             print(f"      body chars: {len(body_text)}  inline images: {len(inline_images)}  html images: {len(html_images)}")
             print(f"      body snippet: {_snippet(body_text)!r}")
             print(f"      regex on body only ({len(regex_codes)}): {regex_codes or '(none)'}")
-            if all_images:
-                print(f"      OCR from images ({len(ocr_preview)} chars): {_snippet(ocr_preview)!r}")
             print(f"      hybrid entries ({len(entries)}):")
-            if last_openrouter_error:
-                print(f"      OpenRouter: {last_openrouter_error}")
+            if llm_extract.last_llm_error:
+                print(f"      Claude: {llm_extract.last_llm_error}")
             if entries:
                 for e in entries:
                     print(f"        - {e.code} | {e.context}")
                 total_codes += len(entries)
             else:
-                print("        (none - check OCR, OPENROUTER_API_KEY, or llm.enabled in config.yaml)")
+                print("        (none - check `claude` login or llm.enabled in config.yaml)")
 
     return total_codes, errors
 
@@ -283,8 +280,8 @@ def debug_edstem(
 
                 occurred = _parse_ed_time(created)
 
-                regex_codes = extract_codes_from_content(
-                    text, config.code_patterns, ()
+                regex_codes = extract_codes_from_text(
+                    text, config.code_patterns
                 )
                 entries = extract_entries_hybrid(
                     text=text,
@@ -295,19 +292,16 @@ def debug_edstem(
                     llm_enabled=config.llm_enabled,
                     llm_only_when_empty=config.llm_only_when_empty,
                     llm_model=config.llm_model,
-                    llm_max_tokens=config.llm_max_tokens,
+                    llm_effort=config.llm_effort,
                     default_occurred=occurred,
                 )
-                ocr_preview = ocr_blobs_to_text(image_blobs) if image_blobs else ""
 
                 print(f"      text chars: {len(text)}  images: {len(image_blobs)}")
                 print(f"      snippet: {_snippet(text)!r}")
                 print(f"      regex on body only ({len(regex_codes)}): {regex_codes or '(none)'}")
-                if image_blobs:
-                    print(f"      OCR from images ({len(ocr_preview)} chars): {_snippet(ocr_preview)!r}")
                 print(f"      hybrid entries ({len(entries)}):")
-                if last_openrouter_error:
-                    print(f"      OpenRouter: {last_openrouter_error}")
+                if llm_extract.last_llm_error:
+                    print(f"      Claude: {llm_extract.last_llm_error}")
                 if entries:
                     for e in entries:
                         print(f"        - {e.code} | {e.context}")

@@ -162,7 +162,7 @@ def _filter_units_for_collect(config, unit_codes: list[str] | None):
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
-        llm_max_tokens=config.llm_max_tokens,
+        llm_effort=config.llm_effort,
         ed_digest=config.ed_digest,
     )
 

@@ -91,7 +91,13 @@ def fetch_since(days: int) -> list[AttendanceRecord]:
     ).fetchall()
     conn.close()
     out: list[AttendanceRecord] = []
+    seen: set[tuple[str, str]] = set()
     for row in rows:
+        # Gmail and Ed often post the same code; show it once
+        key = (row["unit_code"].upper(), row["code"].upper())
+        if key in seen:
+            continue
+        seen.add(key)
         occurred = datetime.fromisoformat(row["occurred_at"])
         if occurred.tzinfo is None:
             occurred = occurred.replace(tzinfo=timezone.utc)

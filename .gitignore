@@ -14,3 +14,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 *.log
+
+# Saved Ed digest outputs (private course content)
+digest_*.md

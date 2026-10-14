@@ -55,7 +55,7 @@ class AppConfig:
     llm_enabled: bool = False
     llm_only_when_empty: bool = True
     llm_model: str | None = None
-    llm_max_tokens: int = 2048
+    llm_effort: str = "medium"
     ed_digest: EdDigestConfig = field(default_factory=EdDigestConfig)
 
 
@@ -133,7 +133,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         ed_region=os.getenv("ED_REGION", "us"),
         llm_enabled=bool(llm.get("enabled", False)),
         llm_only_when_empty=bool(llm.get("only_when_regex_empty", True)),
-        llm_model=llm.get("model") or os.getenv("OPENROUTER_MODEL"),
-        llm_max_tokens=int(llm.get("max_tokens", 2048)),
+        llm_model=llm.get("model"),
+        llm_effort=str(llm.get("effort", "medium")),
         ed_digest=ed_digest,
     )

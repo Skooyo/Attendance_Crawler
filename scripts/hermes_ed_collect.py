@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r"D:\Projects\Attendance_Crawler")
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
 PY = str(VENV_PY) if VENV_PY.exists() else sys.executable
 
@@ -16,6 +16,7 @@ def _child_env() -> dict[str, str]:
             continue
         env[key] = value
     env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     return env
 
 

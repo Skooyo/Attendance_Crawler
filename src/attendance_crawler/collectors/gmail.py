@@ -138,7 +138,7 @@ def _process_message(
         llm_enabled=config.llm_enabled,
         llm_only_when_empty=config.llm_only_when_empty,
         llm_model=config.llm_model,
-        llm_max_tokens=config.llm_max_tokens,
+        llm_effort=config.llm_effort,
         default_occurred=occurred,
     )
     source_url = f"https://mail.google.com/mail/u/0/#inbox/{msg_id}"

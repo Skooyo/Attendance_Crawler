@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from attendance_crawler.auth_moodle import moodle_session_valid
 from attendance_crawler.config import AppConfig, UnitConfig
 from attendance_crawler.extract import (
-    extract_codes_from_content,
+    extract_codes_from_text,
     format_tutorial_line,
     parse_weekday_date_string,
     session_number_before_time,
@@ -188,7 +188,7 @@ def _extract_from_page(
     records = _records_from_session_tables(unit_code, url, combined, patterns)
 
     if not records:
-        codes = extract_codes_from_content(combined, patterns)
+        codes = extract_codes_from_text(combined, patterns)
         occurred = datetime.now(timezone.utc)
         context = combined[:200] if combined else url
         records = [

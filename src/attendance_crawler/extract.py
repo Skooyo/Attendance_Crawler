@@ -1,39 +1,9 @@
-import os
 import re
 from datetime import datetime, timedelta, timezone
 from html import unescape
-from io import BytesIO
-from pathlib import Path
 from typing import Iterable
 
 from bs4 import BeautifulSoup
-from PIL import Image, ImageEnhance, ImageOps
-
-try:
-    import pytesseract
-except ImportError:
-    pytesseract = None  # type: ignore
-
-_tesseract_warned = False
-_tesseract_cmd_ready = False
-
-
-def _configure_tesseract_cmd() -> None:
-    """Use TESSERACT_CMD or the default Windows install path if PATH has no tesseract."""
-    global _tesseract_cmd_ready
-    if _tesseract_cmd_ready or pytesseract is None:
-        return
-    _tesseract_cmd_ready = True
-    candidates = [
-        os.getenv("TESSERACT_CMD"),
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-        str(Path.home() / "AppData/Local/Programs/Tesseract-OCR/tesseract.exe"),
-    ]
-    for path in candidates:
-        if path and Path(path).is_file():
-            pytesseract.pytesseract.tesseract_cmd = path
-            return
 
 
 def strip_html(html: str) -> str:
@@ -59,58 +29,6 @@ def extract_codes_from_text(text: str, patterns: Iterable[str]) -> list[str]:
     return found
 
 
-def ocr_image_bytes(data: bytes) -> str:
-    global _tesseract_warned
-    if pytesseract is None:
-        return ""
-    _configure_tesseract_cmd()
-    try:
-        img = Image.open(BytesIO(data))
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGBA")
-            bg = Image.new("RGB", img.size, (255, 255, 255))
-            bg.paste(img, mask=img.split()[-1])
-            img = bg
-        img = ImageOps.grayscale(img)
-        img = ImageEnhance.Contrast(img).enhance(2.0)
-        return pytesseract.image_to_string(img).strip()
-    except Exception as e:
-        if not _tesseract_warned:
-            _tesseract_warned = True
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "Tesseract OCR skipped: %s (install Tesseract and add it to PATH)",
-                e,
-            )
-        return ""
-
-
-def ocr_blobs_to_text(image_blobs: Iterable[bytes]) -> str:
-    parts: list[str] = []
-    for blob in image_blobs:
-        text = ocr_image_bytes(blob)
-        if text:
-            parts.append(text)
-    return "\n\n".join(parts)
-
-
-def extract_codes_from_content(
-    text: str,
-    patterns: Iterable[str],
-    image_blobs: Iterable[bytes] = (),
-) -> list[str]:
-    codes = extract_codes_from_text(text, patterns)
-    seen = set(codes)
-    for blob in image_blobs:
-        ocr_text = ocr_image_bytes(blob)
-        for c in extract_codes_from_text(ocr_text, patterns):
-            if c not in seen:
-                seen.add(c)
-                codes.append(c)
-    return codes
-
-
 _DATE_RE = re.compile(
     r"(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*(\d{1,2})\s+"
     r"(January|February|March|April|May|June|July|August|September|October|November|December|"
@@ -126,15 +44,16 @@ def format_tutorial_line(
     time_str: str,
     code: str,
 ) -> str:
-    parts = [session_type.strip() or "Tutorial"]
-    if date_str:
-        parts.append(date_str.strip())
-    if number:
-        parts.append(number.strip())
-    if time_str:
-        parts.append(time_str.strip())
-    parts.append(code.strip())
-    return " | ".join(parts)
+    # Always emit 5 pipe-separated fields so downstream parsers can rely on
+    # fixed column positions (index 2 = session number) regardless of which
+    # metadata the extractor managed to capture.
+    return " | ".join([
+        session_type.strip() or "Tutorial",
+        date_str.strip() if date_str else "",
+        number.strip() if number else "",
+        time_str.strip() if time_str else "",
+        code.strip(),
+    ])
 
 
 def parse_weekday_date_string(date_str: str) -> datetime:

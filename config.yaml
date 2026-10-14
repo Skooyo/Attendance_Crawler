@@ -55,12 +55,10 @@ hermes:
   lookback_days: 7
   silent_when_empty: true
 
-# OpenRouter LLM extraction (set OPENROUTER_API_KEY in .env)
-# Model: openrouter/free picks a free model per request (vision when needed).
-# Or use a specific free slug, e.g. meta-llama/llama-3.2-3b-instruct:free
+# Image tables (and text posts where regex finds nothing) go to `claude -p`.
+# Needs the Claude Code CLI on PATH and logged in (run `claude` once, then /login).
 llm:
   enabled: true
   only_when_regex_empty: true
-  model: openrouter/free
-  # Cap tokens so OpenRouter does not reject requests (default 16k can hit credit limits)
-  max_tokens: 2048
+  model: claude-sonnet-5-5
+  effort: medium

@@ -13,7 +13,7 @@ Codes are normalized into rows like `Tutorial | Friday, 31 Jul | 03 | 10:00AM | 
 ## Features
 
 - **Multi-source collectors** — Moodle (Playwright), EdStem (REST), Gmail (API)
-- **Regex + Tesseract OCR + optional OpenRouter vision** when codes live in images
+- **Regex for text, `claude -p` (Sonnet) for images** when codes live in images
 - **Per-unit config** — sources, Gmail/Ed filters, Monash week→section mapping (`week1=8`, `+4` per week)
 - **`my_sessions`** — only show tutorial/workshop slots you actually attend in `review` and Hermes digests
 - **Hermes no-agent cron** — script stdout goes straight to Discord; collect job stays local
@@ -45,7 +45,7 @@ playwright install chromium
 copy .env.example .env
 ```
 
-1. Edit **`config.yaml`** (units, `my_sessions`, Moodle week sections) and **`.env`** (`ED_API_TOKEN`, optional `OPENROUTER_API_KEY`).
+1. Edit **`config.yaml`** (units, `my_sessions`, Moodle week sections) and **`.env`** (`ED_API_TOKEN`). Log in to the `claude` CLI for image codes.
 2. **`python -m attendance_crawler auth moodle`** — Okta login once; session in `.auth/moodle.json`.
 3. Place **`credentials.json`** in the project root and run **`collect`** once to complete Gmail OAuth (`token.json`).
 4. **`python -m attendance_crawler collect --units FIT2102,FIT2109`** — smoke test.
@@ -62,7 +62,7 @@ Collect attendance codes from Moodle, EdStem, and Gmail into a local SQLite data
 ## Requirements
 
 - Python 3.10+
-- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) installed and on `PATH` (for image codes)
+- [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) on `PATH` and logged in (for image codes)
 - Playwright Chromium: `playwright install chromium`
 
 ## Setup
@@ -88,18 +88,11 @@ Gmail uses **Google OAuth**. `gmail_query` in `config.yaml` uses Gmail `subject:
 
 Example subject: `FIT2109 S2 2026 Malaysia : Attendance code ... - Week 1 Workshops and Tutorials`
 
-### OpenRouter (optional LLM extraction)
+### Claude extraction (image codes)
 
-When regex/OCR miss codes, enable in `config.yaml` under `llm:` and set:
+EdStem/Gmail posts usually put codes **in images**. With `llm.enabled: true`, every post with images goes to one `claude -p` call (`llm.model`, default `claude-sonnet-5-5`, `llm.effort`, default `medium`). Claude reads the images with its `Read` tool and returns rows as structured JSON. Text-only posts use regex first and call Claude only when regex finds nothing.
 
-```env
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=openrouter/free
-```
-
-EdStem/Gmail posts usually put codes **in images**. With `llm.enabled: true`, the collector runs **OpenRouter vision on images first** (not regex on the email HTML). Default model is **`openrouter/free`** (zero-cost router; picks a free model that supports vision when possible). Override via `llm.model` in `config.yaml` or `OPENROUTER_MODEL` in `.env`.
-
-Get a key at https://openrouter.ai/keys
+The [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) must be on `PATH` and logged in. Run `claude` once and use `/login` if a collect logs `OAuth session expired`.
 
 ### Gmail OAuth credentials
 
